@@ -18,7 +18,7 @@
 -module(webmachine_mochiweb).
 -author('Justin Sheehy <justin@basho.com>').
 -author('Andy Gross <andy@basho.com>').
--export([start/1, stop/0, loop/1]).
+-export([start/1, stop/0, loop/1, loop/2]).
 
 start(Options) ->
     {DispatchList, Options1} = get_option(dispatch, Options),
@@ -55,15 +55,25 @@ start(Options) ->
     end,
     application:set_env(webmachine, dispatch_list, DispatchList),
     application:set_env(webmachine, error_handler, ErrorHandler),
-    mochiweb_http:start([{name, PName}, {loop, fun loop/1} | Options5]).
+
+    Props = [{dispatch_list, DispatchList}],
+
+    mochiweb_http:start([{name, PName},
+			 {loop, fun(Req) -> loop(Req, Props) end} | Options5]).
 
 stop() ->
     {registered_name, PName} = process_info(self(), registered_name),
     mochiweb_http:stop(PName).
 
 loop(MochiReq) ->
+    DispatchList = application:get_env(webmachine, dispatch_list),
+
+    Props = [{dispatch_list, DispatchList}],
+    loop(MochiReq, Props).
+
+loop(MochiReq, Props) ->
     Req = webmachine:new_request(mochiweb, MochiReq),
-    {ok, DispatchList} = application:get_env(webmachine, dispatch_list),
+    DispatchList = proplists:get_value(dispatch_list, Props),
     Host = case host_headers(Req) of
                [H|_] -> H;
                [] -> []
